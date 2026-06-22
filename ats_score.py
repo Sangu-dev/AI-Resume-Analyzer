@@ -1,5 +1,11 @@
-def ats_score(text, skills):
+def ats_score(text, skills, ai_data=None):
+    if ai_data and "ats_score" in ai_data:
+        try:
+            return min(max(int(ai_data["ats_score"]), 0), 100)
+        except (ValueError, TypeError):
+            pass
 
+    # Fallback to basic heuristics
     score = 0
     text = text.lower()
 
