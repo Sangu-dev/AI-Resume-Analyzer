@@ -1,53 +1,36 @@
-def get_suggestions(score, contact, text, ai_data=None):
-
+def get_suggestions(resume_text, skills, contact=None):
     tips = []
+    
+    # CRASH PROTECTION: If contact is a list or something else, convert it safely
+    if not isinstance(contact, dict):
+        contact = {}
+        
+    # Lowercase the text for easy searching
+    text_lower = resume_text.lower() if resume_text else ""
 
-    # If AI data has custom suggestions, use them
-    if ai_data and "suggestions" in ai_data:
-        for tip in ai_data["suggestions"]:
-            clean_tip = tip.strip()
-            if clean_tip:
-                # Add prefix bullet if not already present
-                if not clean_tip.startswith("🔹") and not clean_tip.startswith("•"):
-                    clean_tip = f"🔹 {clean_tip}"
-                tips.append(clean_tip)
+    # Check for GitHub link safely
+    if contact.get("github") == "Not Found":
+        tips.append("🔹 Add a link to your GitHub profile to showcase your project repositories.")
 
-    # GitHub check (always check layout/contact completeness)
-    if contact["github"] == "Not Found" and not any("github" in t.lower() for t in tips):
-        tips.append("🔹 Add your GitHub profile link.")
+    # Check for LinkedIn link safely
+    if contact.get("linkedin") == "Not Found":
+        tips.append("🔹 Include your LinkedIn profile URL to help recruiters find your network.")
 
-    # LinkedIn check
-    if contact["linkedin"] == "Not Found" and not any("linkedin" in t.lower() for t in tips):
-        tips.append("🔹 Add your LinkedIn profile link.")
+    # Check for standard contact fields safely
+    if contact.get("email") == "Not Found":
+        tips.append("🔹 Missing Email address: Ensure your primary contact email is visible at the top.")
+        
+    if contact.get("phone") == "Not Found":
+        tips.append("🔹 Missing Phone number: Add a preferred contact number for interviews.")
 
-    # Fallback to basic heuristics if no AI suggestions were found
-    if len(tips) <= 2:  # which means only GitHub/LinkedIn might be added
-        text = text.lower()
+    # Basic structural recommendations
+    if "education" not in text_lower:
+        tips.append("🔹 Include an explicit 'Education' section with your degree and graduation details.")
+        
+    if "experience" not in text_lower and "work" not in text_lower:
+        tips.append("🔹 Add a structured 'Professional Experience' or 'Work History' section.")
 
-        # Internship / Work Experience
-        internship_keywords = [
-            "internship",
-            "intern",
-            "work experience",
-            "professional experience"
-        ]
+    if len(skills) < 5:
+        tips.append("🔹 Expand your skills section to include more technical tools, languages, or core competencies.")
 
-        found = False
-
-        for keyword in internship_keywords:
-            if keyword in text:
-                found = True
-                break
-
-        if not found:
-            tips.append("🔹 Consider adding internships or relevant work experience.")
-
-        # Certifications
-        if "certification" not in text and "certificate" not in text:
-            tips.append("🔹 Consider adding certifications.")
-
-        # Projects
-        if "projects" not in text and "project" not in text:
-            tips.append("🔹 Add academic or personal projects.")
-
-    return tips
+    return tips

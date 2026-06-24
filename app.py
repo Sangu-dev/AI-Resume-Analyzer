@@ -11,310 +11,279 @@ from skill_compare import compare_skills
 import local_ai_service
 
 # -----------------------------
-# Page Configuration
+# Page Configuration & Professional Branding
 # -----------------------------
 st.set_page_config(
-    page_title="AI Resume Analyzer",
-    page_icon="🤖",
+    page_title="Professional Resume Suite",
+    page_icon="👔",
     layout="wide"
 )
 
+# Custom minimalistic styling injection to polish native elements
+st.markdown("""
+    <style>
+    /* Styling metric card backgrounds slightly for a container look */
+    [data-testid="stMetricSimpleValue"] {
+        font-size: 2rem !important;
+        font-weight: 600 !important;
+    }
+    div[data-testid="stMetric"] {
+        background-color: var(--secondary-background-color);
+        padding: 15px 25px;
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+    }
+    /* Smooth button layouts */
+    .stButton>button {
+        border-radius: 8px !important;
+        padding: 0.5rem 1.5rem !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 # -----------------------------
-# Ollama Local LLM Check
+# Background Configuration (Ollama Services)
 # -----------------------------
 ollama_active = local_ai_service.is_ollama_running()
-installed_models = []
-if ollama_active:
-    installed_models = local_ai_service.get_local_models()
+installed_models = local_ai_service.get_local_models() if ollama_active else []
+
+# Cleaned up Sidebar: Moving technical configs into a clean, collapsible section
+with st.sidebar:
+    st.title("Settings")
+    st.caption("Configure optimization settings below.")
+    
+    with st.expander("🛠️ Advanced Engine Settings", expanded=False):
+        if ollama_active:
+            st.success("Connected securely to optimizer.")
+            if installed_models:
+                selected_model = st.selectbox(
+                    "Analysis Engine Profile",
+                    options=installed_models,
+                    index=0
+                )
+                use_ai = st.checkbox("Enable Deep Insight Analysis", value=True)
+            else:
+                st.warning("No dynamic profiles found.")
+                selected_model = None
+                use_ai = False
+        else:
+            st.error("Offline intelligence service not running.")
+            selected_model = None
+            use_ai = False
 
 # -----------------------------
-# Sidebar Configurations
+# Header Section
 # -----------------------------
-st.sidebar.title("🤖 AI Resume Analyzer")
+st.title("Smart Resume Optimizer")
+st.markdown("Enhance your professional presentation, match requirements, and optimize readability for enterprise systems instantly.")
 
-st.sidebar.markdown("### ⚙️ AI Engine Status")
-if ollama_active:
-    st.sidebar.success("🟢 Connected to Ollama")
-    if installed_models:
-        selected_model = st.sidebar.selectbox(
-            "Select LLM Model",
-            options=installed_models,
-            index=0
-        )
-        use_ai = st.sidebar.checkbox("Enable AI Features", value=True)
+# -----------------------------
+# Main Application Content Tabs
+# -----------------------------
+# Replacing standard linear structures with interactive tabs for an organized view
+tab1, tab2 = st.tabs(["📄 Document Optimization", "🎯 Targeted Role Matcher"])
+
+with tab1:
+    st.subheader("Upload and Audit")
+    uploaded_file = st.file_uploader(
+        "Upload your resume (PDF or TXT format)", 
+        type=["pdf", "txt"],
+        help="Your document remains private and is analyzed locally."
+    )
+    
+    # Simple placeholder behavior to prevent full screen empty layout
+    if not uploaded_file:
+        st.info("Please upload your professional document above to view key metrics.")
+
+with tab2:
+    st.subheader("Role Alignment Tool")
+    jd_text = st.text_area(
+        "Paste target Job Description / Requirements:", 
+        height=200, 
+        placeholder="Paste the explicit job profile parameters here..."
+    )
+
+# -----------------------------
+# Processing Engine Framework
+# -----------------------------
+if uploaded_file:
+    # 1. Parse File Content safely
+    with st.spinner("Analyzing document structure..."):
+        file_bytes = uploaded_file.read()
+        file_hash = hashlib.md5(file_bytes).hexdigest()
+        uploaded_file.seek(0)
+        
+        resume_text = extract_text(uploaded_file)
+        
+    if not resume_text.strip():
+        st.error("Unable to extract valid structural layout text from this file format.")
     else:
-        st.sidebar.warning("⚠️ No local models found.")
-        st.sidebar.info("Run `ollama pull gemma3:1b` or `ollama pull llama3.2` in your terminal to install a model.")
-        selected_model = None
-        use_ai = False
-else:
-    st.sidebar.error("🔴 Ollama Offline")
-    st.sidebar.info("""
-    To enable local AI features:
-    1. Install [Ollama](https://ollama.com).
-    2. Run it on your machine.
-    3. Run `ollama pull gemma3:1b` or `ollama pull llama3.2`.
-    4. Refresh this page.
-    """)
-    selected_model = None
-    use_ai = False
-
-st.sidebar.divider()
-st.sidebar.info("""
-This tool helps you:
-- ✅ Calculate ATS Score
-- ✅ Detect Skills & Extract Contact Details
-- ✅ Match Resume against Job Descriptions
-- ✅ Find Missing Skills
-- ✅ Get AI-Powered Suggestions
-""")
-
-# -----------------------------
-# Main Header
-# -----------------------------
-st.title("🤖 Local AI Resume Analyzer & ATS Checker")
-
-st.markdown("""
-Analyze your resume locally and securely using Open Source LLMs (no data leaves your machine).
-""")
-
-if use_ai and selected_model:
-    st.info(f"✨ running in **AI Mode** using local model `{selected_model}`")
-else:
-    st.warning("⚠️ running in **Basic Mode** (No local LLM active. Running standard static analysis rules)")
-
-st.divider()
-
-# -----------------------------
-# Upload Resume & Job Description
-# -----------------------------
-col_left, col_right = st.columns([1, 1])
-
-with col_left:
-    uploaded = st.file_uploader(
-        "Upload Resume (PDF)",
-        type=["pdf"]
-    )
-
-with col_right:
-    jd = st.text_area(
-        "Paste Job Description (Optional)",
-        height=100,
-        placeholder="Paste the target job description here to compare skill sets and check match suitability..."
-    )
-
-# -----------------------------
-# Session State Caching
-# -----------------------------
-# Reset cache if a new file is uploaded or model changes
-if uploaded:
-    file_bytes = uploaded.getvalue()
-    file_hash = hashlib.md5(file_bytes).hexdigest()
-    
-    if "current_file_hash" not in st.session_state or st.session_state.current_file_hash != file_hash:
-        st.session_state.current_file_hash = file_hash
-        st.session_state.ai_data = None
-        st.session_state.ai_match_data = None
-        st.session_state.last_jd_hash = ""
-        st.session_state.resume_text = None
-
-    # Cache text extraction
-    if "resume_text" not in st.session_state or st.session_state.resume_text is None:
-        st.session_state.resume_text = extract_text(uploaded)
-    
-    text = st.session_state.resume_text
-
-    # Run AI Analysis if enabled and not already cached
-    ai_data = None
-    if use_ai and selected_model:
-        if st.session_state.ai_data is None:
-            with st.spinner(f"🤖 AI is analyzing resume structure & extracting details using {selected_model}..."):
-                st.session_state.ai_data = local_ai_service.analyze_resume_local(text, selected_model)
-        ai_data = st.session_state.ai_data
-
-    # Extract Contact Details
-    contact = extract_contact(text, ai_data=ai_data)
-
-    # Detect Skills
-    skills = find_skills(text, ai_data=ai_data)
-
-    # Calculate ATS Score
-    score = ats_score(text, skills, ai_data=ai_data)
-
-    # Process Job Description Match
-    ai_match_data = None
-    if jd.strip() != "":
-        jd_hash = hashlib.md5(jd.strip().encode()).hexdigest()
+        # 2. Extract Data Points via Intelligence layer
+        ai_data = None
+        ai_match_data = None
         
         if use_ai and selected_model:
-            if st.session_state.ai_match_data is None or st.session_state.last_jd_hash != jd_hash:
-                with st.spinner(f"🎯 AI is matching your profile with the job description..."):
-                    st.session_state.ai_match_data = local_ai_service.match_jd_local(text, jd.strip(), selected_model)
-                    st.session_state.last_jd_hash = jd_hash
-            ai_match_data = st.session_state.ai_match_data
+            # Setup session state caching safely against file hash modifications
+            if "file_hash" not in st.session_state or st.session_state.file_hash != file_hash:
+                with st.spinner("Generating professional summary and strategic feedback..."):
+                    ai_data = local_ai_service.analyze_resume_local(resume_text, selected_model)
+                    st.session_state.ai_data = ai_data
+                    st.session_state.file_hash = file_hash
+            else:
+                ai_data = st.session_state.ai_data
+                
+            # Perform targeted role analysis if job profile data exists
+            if jd_text.strip() != "":
+                if "jd_hash" not in st.session_state or st.session_state.jd_hash != hashlib.md5(jd_text.encode()).hexdigest():
+                    with st.spinner("Calculating role compatibility..."):
+                        ai_match_data = local_ai_service.match_jd_local(resume_text, jd_text, selected_model)
+                        st.session_state.ai_match_data = ai_match_data
+                        st.session_state.jd_hash = hashlib.md5(jd_text.encode()).hexdigest()
+                else:
+                    ai_match_data = st.session_state.ai_match_data
 
-    # -----------------------------
-    # Display Dashboard
-    # -----------------------------
-    st.success("✅ Resume processed successfully!")
-
-    if ai_data and ai_data.get("candidate_name") and ai_data["candidate_name"] != "Not Found":
-        st.subheader(f"👤 Candidate: {ai_data['candidate_name']}")
-
-    # Columns for Layout
-    d_col1, d_col2 = st.columns([1, 1])
-
-    with d_col1:
-        # ATS Score Widget
-        st.subheader("📊 ATS Score")
-        st.metric(label="ATS Score", value=f"{score}/100")
-        st.progress(score / 100)
-
-        if score >= 90:
-            st.success("🟢 Excellent Resume structure & completeness")
-        elif score >= 75:
-            st.info("🔵 Good Resume - minor enhancements suggested")
-        elif score >= 50:
-            st.warning("🟡 Average Resume - needs missing content/structure revisions")
-        else:
-            st.error("🔴 Needs Improvement - layout or critical details missing")
-
-    with d_col2:
-        # Contact Details Widget
-        st.subheader("📞 Contact Details")
-        st.write("**📧 Email:**", contact["email"])
-        st.write("**📱 Phone:**", contact["phone"])
-        st.write("**🔗 LinkedIn:**", contact["linkedin"])
-        st.write("**💻 GitHub:**", contact["github"])
-
-    st.divider()
-
-    # AI Summary
-    if ai_data and ai_data.get("summary"):
-        st.subheader("📋 Professional Summary (AI Generated)")
-        st.info(ai_data["summary"])
-        st.divider()
-
-    # Detected Skills
-    st.subheader("🛠️ Detected Skills")
-    col1, col2 = st.columns(2)
-    for i, skill in enumerate(skills):
-        if i % 2 == 0:
-            col1.success(skill)
-        else:
-            col2.success(skill)
-
-    # Job Description Match
-    if jd.strip() != "":
-        st.divider()
-        st.subheader("🎯 Job Match Analysis")
+        # 3. Base Extractors Fallback
+        skills = find_skills(resume_text)
+        contact = extract_contact(resume_text, ai_data)
+        score = ats_score(resume_text, skills, ai_data)
+        tips = get_suggestions(resume_text, skills, contact)
         
-        match = match_resume(text, jd.strip(), ai_match_data=ai_match_data)
+        # -----------------------------
+        # Dashboard Analytics Interface
+        # -----------------------------
+        st.divider()
+        st.subheader("Performance Indicators")
         
-        m_col1, m_col2 = st.columns([1, 2])
+        # Clean corporate metric column split
+        m_col1, m_col2, m_col3 = st.columns(3)
         
         with m_col1:
-            st.markdown("**Job Match Score:**")
-            st.metric(label="Match Rate", value=f"{match}%")
-            st.progress(min(int(match), 100))
-        
+            st.metric(label="System Readability Score", value=f"{score}/100")
+            
         with m_col2:
-            if ai_match_data and ai_match_data.get("reasoning"):
-                st.markdown("**Match Fit Analysis:**")
-                st.write(ai_match_data["reasoning"])
-        
-        matched_skills, missing_skills = compare_skills(text, jd.strip(), ai_match_data=ai_match_data)
-        
-        sc_col1, sc_col2 = st.columns(2)
-        
-        with sc_col1:
-            st.subheader("✅ Matched Skills")
-            if matched_skills:
-                for skill in matched_skills:
-                    st.success(skill)
+            if jd_text.strip() != "":
+                match_pct = match_resume(resume_text, jd_text, ai_match_data)
+                st.metric(label="Target Role Compatibility", value=f"{match_pct}%")
             else:
-                st.write("*No exact matching skills detected.*")
+                st.metric(label="Target Role Compatibility", value="--", help="Provide a job description in Tab 2")
                 
-        with sc_col2:
-            st.subheader("❌ Missing Skills")
-            if missing_skills:
-                for skill in missing_skills:
-                    st.error(skill)
+        with m_col3:
+            st.metric(label="Identified Key Competencies", value=str(len(skills)))
+
+        # -----------------------------
+        # Detailed Insights View Splits
+        # -----------------------------
+        st.divider()
+        col_left, col_right = st.columns([1, 1], gap="large")
+        
+        with col_left:
+            st.markdown("### 👤 Profile Summary")
+            summary_content = ai_data.get('summary', 'Summary optimization is running on base context mode.') if ai_data else 'Summary generation requires AI capabilities enabled.'
+            st.write(summary_content)
+            
+            st.markdown("### 🛠️ Extracted Competencies")
+            if skills:
+                # Using modern pills formatting instead of custom code line text joins
+                st.pills("Found Skills", options=sorted(list(set(skills))), label_visibility="collapsed")
             else:
-                st.write("*No critical missing skills detected! Great job.*")
+                st.caption("No standard profile core competencies detected dynamically.")
 
-    # Suggestions Widget
-    st.divider()
-    st.subheader("💡 Suggestions to Improve Resume")
-    
-    tips = get_suggestions(score, contact, text, ai_data=ai_data)
-    
-    if len(tips) == 0:
-        st.success("Excellent! No major suggestions.")
-    else:
-        # Merge target suggestions from job match
-        if ai_match_data and ai_match_data.get("customized_suggestions"):
-            st.markdown("**Role-Specific Optimization Suggestions:**")
-            for tip in ai_match_data["customized_suggestions"]:
-                st.write(f"👉 {tip}")
-            st.markdown("**General Resume Suggestions:**")
-            
-        for tip in tips:
-            st.write(tip)
+            st.markdown("### 📞 Validated Contact Fields")
+            c1, c2 = st.columns(2)
+            with c1:
+                email_val = contact.get('email', 'Not Found')
+                if email_val != "Not Found":
+                    st.markdown(f"**Email:** [{email_val}](mailto:{email_val})")
+                else:
+                    st.markdown("**Email:** *Not Found*")
+                    
+                st.markdown(f"**Phone:** {contact.get('phone', 'Not Found')}")
+                
+            with c2:
+                li_val = contact.get('linkedin', 'Not Found')
+                if li_val != "Not Found":
+                    li_link = li_val if li_val.startswith("http") else f"https://{li_val}"
+                    st.markdown(f"**LinkedIn:** [View Profile]({li_link})")
+                else:
+                    st.markdown("**LinkedIn:** *Not Found*")
+                    
+                gh_val = contact.get('github', 'Not Found')
+                if gh_val != "Not Found":
+                    gh_link = gh_val if gh_val.startswith("http") else f"https://github.com/{gh_val}"
+                    st.markdown(f"**GitHub:** [View Repositories]({gh_link})")
+                else:
+                    st.markdown("**GitHub:** *Not Found*")
 
-    # -----------------------------
-    # Create Downloadable Report
-    # -----------------------------
-    report = f"""==================================================
-AI RESUME ANALYZER REPORT
+        with col_right:
+            # Dynamic conditional matching content
+            if jd_text.strip() != "":
+                st.markdown("### 🎯 Role Gap Analysis")
+                matched_skills, missing_skills = compare_skills(resume_text, jd_text, ai_match_data)
+                
+                tab_match, tab_missing = st.tabs(["✅ Matched Attributes", "⚠️ Development Gaps"])
+                with tab_match:
+                    if matched_skills:
+                        st.pills("Matched", options=matched_skills, label_visibility="collapsed")
+                    else:
+                        st.caption("No direct matching overlap found for the specified role parameters.")
+                with tab_missing:
+                    if missing_skills:
+                        st.pills("Missing", options=missing_skills, label_visibility="collapsed")
+                    else:
+                        st.caption("Exceptional! No clear keyword criteria profile gap observed.")
+
+                if ai_match_data and ai_match_data.get("reasoning"):
+                    st.markdown("**Strategic Compatibility Overview:**")
+                    st.info(ai_match_data["reasoning"])
+                    
+                if ai_match_data and ai_match_data.get("customized_suggestions"):
+                    st.markdown("**Role Optimization Adjustments:**")
+                    for recommendation in ai_match_data["customized_suggestions"]:
+                        st.markdown(f"• {recommendation}")
+            else:
+                st.markdown("### 📈 Quality Enhancement Actions")
+                for optimization_tip in tips:
+                    clean_tip = optimization_tip.replace('🔹 ', '')
+                    st.markdown(f"• {clean_tip}")
+
+        # -----------------------------
+        # Export Actions
+        # -----------------------------
+        st.divider()
+        st.markdown("### 📥 Document Audit Report")
+        
+        # Build beautiful structured clean text file compilation
+        report = f"""COMPREHENSIVE RESUME OPTIMIZATION AUDIT
 ==================================================
-Candidate: {ai_data.get('candidate_name', 'Not Extracted') if ai_data else 'Not Extracted'}
-ATS Score: {score}/100
-Mode: {"Local AI Mode (" + selected_model + ")" if (use_ai and selected_model) else "Basic Rule-Based Mode"}
+METRICS OVERVIEW:
+- System Readability Score: {score}/100
+- Total Core Skills Parsed: {len(skills)}
 
-CONTACT DETAILS:
-- Email: {contact['email']}
-- Phone: {contact['phone']}
-- LinkedIn: {contact['linkedin']}
-- GitHub: {contact['github']}
+CONTACT SUMMARY:
+- Email: {contact.get('email', 'Not Found')}
+- Phone: {contact.get('phone', 'Not Found')}
+- LinkedIn: {contact.get('linkedin', 'Not Found')}
+- GitHub: {contact.get('github', 'Not Found')}
 
-PROFESSIONAL SUMMARY:
-{ai_data.get('summary', 'Not available (Run in AI mode to generate).') if ai_data else 'Not available (Run in AI mode to generate).'}
+PROFESSIONAL CONTEXT:
+{summary_content}
 
-DETECTED SKILLS:
-{", ".join(skills)}
-
+CORE RECOGNIZED SKILLS:
+{', '.join(skills)}
 """
-    if jd.strip() != "":
-        report += f"""--------------------------------------------------
-JOB DESCRIPTION MATCH ANALYSIS:
-- Match Percentage: {match}%
-"""
-        if ai_match_data and ai_match_data.get("reasoning"):
-            report += f"- Fit Analysis: {ai_match_data['reasoning']}\n"
-            
-        report += f"""
-- Matched Skills: {', '.join(matched_skills)}
-- Missing Skills: {', '.join(missing_skills)}
-"""
-        if ai_match_data and ai_match_data.get("customized_suggestions"):
-            report += "\nROLE-SPECIFIC OPTIMIZATION RECOMMENDATIONS:\n"
-            for tip in ai_match_data["customized_suggestions"]:
-                report += f"- {tip}\n"
+        if jd_text.strip() != "":
+            report += f"\n==================================================\nROLE MATCH AUDIT SCORE: {match_pct}%\n"
+            if ai_match_data and ai_match_data.get("reasoning"):
+                report += f"- Structural Analysis: {ai_match_data['reasoning']}\n"
+            report += f"- Shared Skills: {', '.join(matched_skills)}\n- Target Profile Gaps: {', '.join(missing_skills)}\n"
 
-    report += "\n--------------------------------------------------\nRESUME IMPROVEMENT SUGGESTIONS:\n"
-    for tip in tips:
-        report += f"- {tip.replace('🔹 ', '')}\n"
+        report += "\n==================================================\nACTIONABLE RECOMMENDATIONS:\n"
+        for optimization_tip in tips:
+            report += f"- {optimization_tip.replace('🔹 ', '')}\n"
 
-    st.markdown("### 📥 Download Your Report")
-    st.download_button(
-        "Download Analysis Report",
-        report,
-        "resume_analysis_report.txt"
-    )
-
-st.markdown("---")
-st.markdown(
-    "<center>Made with ❤️ using Streamlit & Local Ollama</center>",
-    unsafe_allow_html=True
-)
+        st.download_button(
+            label="Download Complete Optimization Report",
+            data=report,
+            file_name="resume_optimization_report.txt",
+            mime="text/plain"
+        )

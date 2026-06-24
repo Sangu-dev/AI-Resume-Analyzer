@@ -35,9 +35,9 @@ def extract_contact(text, ai_data=None):
     linkedin = ai_contact.get("linkedin", "Not Found")
     if linkedin == "Not Found" or not linkedin:
         linkedin_match = re.search(
-            r"(https?://)?(www\.)?linkedin\.com/[A-Za-z0-9_/\-]+",
-            text,
-            re.IGNORECASE
+        r"(https?://)?(www\.)?linkedin\.com/in/[A-Za-z0-9_-]+",
+        text,
+        re.IGNORECASE
         )
         if linkedin_match:
             linkedin = linkedin_match.group(0)
@@ -59,7 +59,7 @@ def extract_contact(text, ai_data=None):
         else:
             # Case 2: Formats like "Github ykoushik52"
             github_match = re.search(
-                r"github\s*[:\-]?\s*([A-Za-z0-9_.\-]+)",
+                r"(?:https?://)?(?:www\.)?github\.com/([A-Za-z0-9_.-]+)",
                 text,
                 re.IGNORECASE
             )
@@ -75,4 +75,4 @@ def extract_contact(text, ai_data=None):
         "phone": phone,
         "linkedin": linkedin,
         "github": github
-    }
+    }

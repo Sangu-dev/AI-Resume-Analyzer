@@ -101,18 +101,24 @@ def match_jd_local(resume_text, jd_text, model_name="gemma3:1b"):
         return None
 
     system_prompt = """
-    You are an expert recruiter and ATS resume matcher.
-    Analyze the provided resume text against the Job Description (JD).
-    
-    You MUST respond with a valid JSON object matching the following structure. Do NOT include any markdown formatting, wrappers, or text outside the JSON object.
-    
-    JSON Schema:
+    You are an expert ATS recruiter and resume optimization assistant.
+
+    Compare the resume with the job description carefully.
+
+    Return ONLY valid JSON in this format:
+
     {
-      "match_score": 85, // Integer from 0 to 100 indicating semantic match percentage.
-      "reasoning": "A concise explanation of why the candidate is or isn't a good match for the role.",
-      "matched_skills": ["Skills from the resume that align with the requirements of the job description"],
-      "missing_skills": ["Key skills, tools, or requirements in the job description that are NOT found or implied in the resume"],
-      "customized_suggestions": ["Actionable suggestions to customize this resume specifically for this job description (e.g. 'Highlight your experience with GCP under the Senior Engineer role')"]
+    "match_score": 85,
+    "reasoning": "Explain why the resume matches or does not match the job.",
+    "matched_skills": ["List matching skills"],
+    "missing_skills": ["List missing skills"],
+    "customized_suggestions": [
+        "Give 5 specific suggestions.",
+        "Mention exact missing skills or keywords from the job description.",
+        "Do not give generic advice.",
+        "Do not invent fake experience.",
+        "Suggest improvements to projects, skills, certifications, or resume sections based on the JD."
+        ]
     }
     """
 
