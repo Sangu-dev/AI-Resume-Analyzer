@@ -17,9 +17,9 @@ from typing import Any, Dict, List, Optional
 
 import streamlit as st
 
-# --------------------------------------------------------------------------- #
+
 #  Local module imports (fail fast with a clear message if anything is missing)
-# --------------------------------------------------------------------------- #
+
 try:
     from ats_score import ats_score
     from contact_extractor import extract_contact
@@ -36,17 +36,17 @@ except ImportError as exc:
     )
     st.stop()
 
-# --------------------------------------------------------------------------- #
+
 #  Logging
-# --------------------------------------------------------------------------- #
+
 logger = logging.getLogger(__name__)
 
-# --------------------------------------------------------------------------- #
+
 #  Constants
-# --------------------------------------------------------------------------- #
+
 APP_NAME = "Resume Analyzer"
 APP_ICON = "📄"
-SUPPORTED_TYPES = ["pdf", "txt"]
+SUPPORTED_TYPES = ["pdf", "txt", "docx"]
 MAX_FILE_SIZE_MB = 10
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
@@ -58,9 +58,8 @@ COLOR_TAG_BG = "#e1f3ed"
 COLOR_TAG_BORDER = "#a8d5c5"
 COLOR_TAG_TEXT = "#0d4f3f"
 
-# --------------------------------------------------------------------------- #
 #  Data models
-# --------------------------------------------------------------------------- #
+
 @dataclass
 class ContactInfo:
     email: str = "Not found"
@@ -96,9 +95,8 @@ class AnalysisResult:
     error: Optional[str] = None
 
 
-# --------------------------------------------------------------------------- #
 #  Helpers
-# --------------------------------------------------------------------------- #
+
 def _coalesce(value: Optional[str], fallback: str = "Not found") -> str:
     """Return a cleaned string or a fallback."""
     return value if value and value.strip() and value != "Not Found" else fallback
@@ -125,22 +123,27 @@ def _init_session_state() -> None:
         "analysis": None,
         "file_hash": None,
         "jd_hash": None,
+        "ai_key": None,       # P1-7: tracks AI model+toggle state for cache invalidation
         "selected_model": None,
-        "use_ai": False,
+        "use_ai": True,       # P2-9 fix: matches the checkbox default value
     }
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
 
 
-# --------------------------------------------------------------------------- #
+
 #  Cached service layer  (expensive / deterministic work)
-# --------------------------------------------------------------------------- #
+
 @st.cache_data(show_spinner=False)
 def _cached_extract_text(file_bytes: bytes, file_name: str) -> str:
-    """Extract text from uploaded file bytes."""
+    """Extract text from uploaded file bytes.
+
+    P1-1 fix: file_name is now forwarded to extract_text() so the parser
+    can branch on the file extension (PDF vs TXT vs DOCX).
+    """
     try:
-        return extract_text(io.BytesIO(file_bytes))
+        return extract_text(io.BytesIO(file_bytes), file_name)  # P1-1: pass filename
     except Exception as exc:
         logger.exception("Text extraction failed")
         raise RuntimeError(f"Could not extract text from {file_name}: {exc}") from exc
@@ -495,14 +498,11 @@ def main() -> None:
         )
 
         if uploaded_file is not None:
-            if uploaded_file.size > MAX_FILE_SIZE_BYTES:
-                st.error(f"File exceeds {MAX_FILE_SIZE_MB} MB limit.")
-                st.stop()
             with st.container(border=True):
                 st.success(f"✅ **{uploaded_file.name}** is loaded for review.")
         else:
             with st.container(border=True):
-                st.info("Drop in a PDF or TXT resume to generate scores and recommendations.")
+                st.info("Drop in a PDF, TXT, or DOCX resume to generate scores and recommendations.")
 
     with jd_col:
         st.markdown("### Target Role")
@@ -525,6 +525,15 @@ def main() -> None:
         _render_empty_state()
         st.stop()
 
+    # File size validation BEFORE layout columns (P2-5 fix: st.stop() inside
+    # a column context breaks partial renders)
+    if uploaded_file.size > MAX_FILE_SIZE_BYTES:
+        st.error(
+            f"⛔ **File too large** — '{uploaded_file.name}' exceeds the "
+            f"{MAX_FILE_SIZE_MB} MB limit. Please upload a smaller file."
+        )
+        st.stop()
+
     # ----------------------------------------------------------------------- #
     #  Analysis pipeline
     # ----------------------------------------------------------------------- #
@@ -540,14 +549,21 @@ def main() -> None:
 
     # Determine if we need to re-run analysis
     current_jd_hash = _compute_hash(jd_text) if jd_text.strip() else None
+
+    # P1-7 fix: build a key that captures the full AI configuration so that
+    # toggling the AI checkbox or switching models forces a fresh analysis.
+    current_ai_key = f"{selected_model}:enabled" if (use_ai and selected_model) else "no_ai"
+
     cached_analysis: Optional[AnalysisResult] = st.session_state.get("analysis")
     cached_file_hash = st.session_state.get("file_hash")
     cached_jd_hash = st.session_state.get("jd_hash")
+    cached_ai_key = st.session_state.get("ai_key")
 
     if (
         cached_analysis is None
         or cached_file_hash != file_hash
         or cached_jd_hash != current_jd_hash
+        or cached_ai_key != current_ai_key  # P1-7: re-run when AI config changes
     ):
         # New or changed inputs — run full analysis
         with st.spinner("Reading resume content..."):
@@ -615,6 +631,7 @@ def main() -> None:
         st.session_state.analysis = result
         st.session_state.file_hash = file_hash
         st.session_state.jd_hash = current_jd_hash
+        st.session_state.ai_key = current_ai_key  # P1-7: store AI config key
     else:
         result = cached_analysis
 
